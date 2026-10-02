@@ -7,10 +7,10 @@ const express = require('express');
 const { buildGradesSectionsView } = require('../services/academicStructure');
 const store = require('../services/timetableStore');
 const access = require('../services/classAccess');
+const { cleanPeriodDefs } = require('../services/periodDefs');
 
 const router = express.Router();
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const TIME_RE = /^\d{1,2}:\d{2}$/;
 
 const classParams = (src) => ({ grade: String(src?.grade || '').trim(), section: String(src?.section || '').trim() });
 
@@ -80,21 +80,8 @@ router.put('/template', async (req, res) => {
   const { grade, section } = classParams(req.body);
   const { title, periodDefs } = req.body || {};
   if (!grade) return res.status(400).json({ error: 'grade is required' });
-  if (!Array.isArray(periodDefs)) return res.status(400).json({ error: 'periodDefs must be an array' });
-
-  const clean = periodDefs.map((p) => ({
-    code: String(p?.code || '').trim(),
-    start: String(p?.start || '').trim(),
-    end: String(p?.end || '').trim(),
-    isBreak: !!p?.isBreak,
-  })).filter((p) => p.code);
-  if (clean.some((p) => (p.start && !TIME_RE.test(p.start)) || (p.end && !TIME_RE.test(p.end)))) {
-    return res.status(400).json({ error: 'Times must look like 08:50' });
-  }
-  const teaching = clean.filter((p) => !p.isBreak).map((p) => p.code.toUpperCase());
-  if (new Set(teaching).size !== teaching.length) {
-    return res.status(400).json({ error: 'Class period labels must each be unique' });
-  }
+  const { periods: clean, error } = cleanPeriodDefs(periodDefs);
+  if (error) return res.status(400).json({ error });
 
   try {
     const grades = await buildGradesSectionsView(user.school_id);

@@ -22,6 +22,8 @@ token's email; nothing about identity or school is read from the request.
 | `GET /timetable?grade=&section=` | students of the class, parents of a child in it, teachers/admins of the school |
 | `PUT /timetable/template` | school admin, or the class's homeroom teacher |
 | `PUT /timetable/slot` | template managers, or any teacher in the school |
+| `POST /timetable/import/preview` (multipart `file`, PDF ≤ 10 MB) | school admins, teachers — reads every class timetable in the PDF and matches it to the school's classes; saves nothing |
+| `POST /timetable/import/commit` | school admin (any class) or homeroom teacher (own class) — replaces those classes' periods and subjects |
 | `GET /resources?folderId=` | anyone in the school (students/parents see school + their grade/curriculum scope) |
 | `POST /resources/folder`, `POST /resources/file` | teachers, school admins |
 | `DELETE /resources/folder/:id`, `DELETE /resources/file/:id` | teachers, school admins |
@@ -37,6 +39,7 @@ services/classAccess.js  who may view / edit (pure functions)
 services/*Store.js       Supabase queries
 services/academicStructure.js  a school's grades and sections
 services/storage.js      Cloudinary upload
+services/timetableImport/  PDF → Gemini → clean periods/slots, class + teacher matching
 ```
 
 ## Run
@@ -50,4 +53,4 @@ npm test
 
 Environment: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`,
 `FIREBASE_SERVICE_ACCOUNT_B64`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
-`CLOUDINARY_API_SECRET`.
+`CLOUDINARY_API_SECRET`, `GEMINI_API_KEY` (timetable PDF import; optional `GEMINI_MODELS`, tried in order).
