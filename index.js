@@ -9,6 +9,7 @@ app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'aivorah-timetable-resources-service' }));
 
+app.use('/timetable/import', requireUser, require('./routes/timetableImport'));
 app.use('/timetable', requireUser, require('./routes/timetable'));
 app.use('/resources', requireUser, require('./routes/resources'));
 app.use('/uploads', requireUser, require('./routes/uploads'));

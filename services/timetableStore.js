@@ -69,6 +69,27 @@ async function deleteSlot(timetableId, day, periodCode) {
   if (error) throw error;
 }
 
+async function schoolTeachers(schoolId) {
+  const { data, error } = await supabase.from('users').select('id, name').eq('school_id', schoolId).eq('role', 'teacher');
+  if (error) throw error;
+  return data || [];
+}
+
+// Replaces every slot of a timetable (used by PDF import).
+async function replaceSlots(timetableId, slots, updatedBy) {
+  const { error: delErr } = await supabase.from('timetable_slots').delete().eq('timetable_id', timetableId);
+  if (delErr) throw delErr;
+  if (!slots.length) return;
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('timetable_slots').insert(slots.map((s) => ({
+    timetable_id: timetableId, day_of_week: s.day, period_code: s.periodCode,
+    subject_name: s.subject, room_name: s.room || null, teacher_id: s.teacherId || null,
+    updated_by: updatedBy, updated_at: now,
+  })));
+  if (error) throw error;
+}
+
 module.exports = {
+  schoolTeachers, replaceSlots,
   childrenOf, schoolCurriculum, findTimetable, loadSlots, namesById, saveTemplate, upsertSlot, deleteSlot,
 };
