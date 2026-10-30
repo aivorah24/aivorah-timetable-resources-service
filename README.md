@@ -39,7 +39,7 @@ services/classAccess.js  who may view / edit (pure functions)
 services/*Store.js       Supabase queries
 services/academicStructure.js  a school's grades and sections
 services/storage.js      Cloudinary upload
-services/timetableImport/  PDF → Gemini → clean periods/slots, class + teacher matching
+services/timetableImport/  PDF → Gemini / Groq / OpenRouter → clean periods/slots, class + teacher matching
 ```
 
 ## Run
@@ -53,4 +53,4 @@ npm test
 
 Environment: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`,
 `FIREBASE_SERVICE_ACCOUNT_B64`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
-`CLOUDINARY_API_SECRET`, `GEMINI_API_KEY` (timetable PDF import; optional `GEMINI_MODELS`, tried in order).
+`CLOUDINARY_API_SECRET`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` (timetable PDF import, tried in that order; Groq/OpenRouter get page images. Optional `GEMINI_MODELS`, `GROQ_VISION_MODELS`, `OPENROUTER_VISION_MODELS`, `IMPORT_AI_TIMEOUT_MS`).

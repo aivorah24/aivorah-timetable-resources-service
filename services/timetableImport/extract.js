@@ -1,5 +1,5 @@
 // Reads every class timetable in a PDF and returns clean, matched previews.
-const { readPdfAsJson } = require('./gemini');
+const { readPdfAsJson } = require('./pdfReader');
 const { normalizePeriods, normalizeCells, matchClass, matchTeacher } = require('./normalize');
 
 const PROMPT = `This PDF contains one or more school class timetables (weekly bell schedules).
