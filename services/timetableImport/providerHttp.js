@@ -9,9 +9,9 @@ class ProviderError extends Error {
   }
 }
 
-async function fetchJson(url, { label, headers, body }) {
+async function fetchJson(url, { label, headers, body, timeoutMs = TIMEOUT_MS }) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body, signal: controller.signal });
     const data = await res.json().catch(() => ({}));

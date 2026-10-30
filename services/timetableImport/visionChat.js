@@ -12,7 +12,7 @@ function parseJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1).replace(/,\s*([}\]])/g, '$1'));
 }
 
-async function askModel({ name, url, key, model, extraBody }, images, prompt) {
+async function askModel({ name, url, key, model, extraBody, timeoutMs }, images, prompt) {
   const content = [
     { type: 'text', text: prompt },
     ...images.map((jpg) => ({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${jpg.toString('base64')}` } })),
@@ -20,6 +20,7 @@ async function askModel({ name, url, key, model, extraBody }, images, prompt) {
   const data = await fetchJson(url, {
     label: `${name}/${model}`,
     headers: { Authorization: `Bearer ${key}` },
+    timeoutMs,
     body: JSON.stringify({ model, temperature: 0, messages: [{ role: 'user', content }], ...extraBody }),
   });
   try {
@@ -29,16 +30,18 @@ async function askModel({ name, url, key, model, extraBody }, images, prompt) {
   }
 }
 
-async function readWithVisionChat({ name, url, key, models, extraBody = {} }, pages, prompt) {
+async function readWithVisionChat(provider, pages, prompt) {
+  const { name, key, models } = provider;
   if (!key) throw new ProviderError(`${name}: not configured`);
   let lastError;
   for (const model of models) {
     try {
       const classes = [];
       for (let i = 0; i < pages.length; i += PAGES_PER_REQUEST) {
-        const out = await askModel({ name, url, key, model, extraBody }, pages.slice(i, i + PAGES_PER_REQUEST), prompt);
+        const out = await askModel({ extraBody: {}, ...provider, model }, pages.slice(i, i + PAGES_PER_REQUEST), prompt);
         classes.push(...(out?.classes || []));
       }
+      console.info(`[timetable-import] read by ${name}/${model}`);
       return { classes };
     } catch (err) {
       lastError = err;

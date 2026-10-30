@@ -21,7 +21,9 @@ async function readWithGemini(pdfBuffer, prompt, responseSchema) {
         body,
       });
       const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
-      return JSON.parse(text);
+      const out = JSON.parse(text);
+      console.info(`[timetable-import] read by gemini/${model}`);
+      return out;
     } catch (err) {
       lastError = err;
       if (KEY_FAILURE.has(err.status)) break;

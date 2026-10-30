@@ -20,6 +20,7 @@ function visionProviders() {
       name: 'openrouter',
       url: 'https://openrouter.ai/api/v1/chat/completions',
       key: process.env.OPENROUTER_API_KEY,
+      timeoutMs: Number(process.env.OPENROUTER_TIMEOUT_MS) || 120000,
       models: list(process.env.OPENROUTER_VISION_MODELS, 'nvidia/nemotron-3.5-super-vl:free,google/gemma-4-31b-it:free,google/gemma-4-26b-a4b-it:free'),
     },
   ];

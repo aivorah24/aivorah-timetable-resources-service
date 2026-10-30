@@ -23,6 +23,7 @@ beforeEach(() => {
   process.env.GROQ_VISION_MODELS = 'qm1';
   process.env.OPENROUTER_VISION_MODELS = 'om1,om2';
   jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'info').mockImplementation(() => {});
 });
 
 test('uses Gemini when it answers', async () => {
