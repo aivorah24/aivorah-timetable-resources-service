@@ -11,7 +11,7 @@ const store = require('../services/timetableStore');
 const access = require('../services/classAccess');
 const { cleanPeriodDefs } = require('../services/periodDefs');
 const { extractTimetables } = require('../services/timetableImport/extract');
-const { ExtractionUnavailableError } = require('../services/timetableImport/gemini');
+const { ExtractionUnavailableError } = require('../services/timetableImport/pdfReader');
 
 const router = express.Router();
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];

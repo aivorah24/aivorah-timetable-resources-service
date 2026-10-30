@@ -1,4 +1,4 @@
-// PDF import routes through Supertest; Firebase, Supabase, the store and Gemini are mocked.
+// PDF import routes through Supertest; Firebase, Supabase, the store and the PDF reader are mocked.
 
 const USERS = {
   admin: { id: 'u1', role: 'school_admin', school_id: 's1', email: 'admin@s1.org' },
@@ -23,7 +23,7 @@ jest.mock('../../services/timetableStore', () => ({
   saveTemplate: jest.fn(async () => 'tt1'),
   replaceSlots: jest.fn(),
 }));
-jest.mock('../../services/timetableImport/gemini', () => {
+jest.mock('../../services/timetableImport/pdfReader', () => {
   class ExtractionUnavailableError extends Error {}
   return { readPdfAsJson: jest.fn(), ExtractionUnavailableError };
 });
@@ -31,7 +31,7 @@ jest.mock('../../services/timetableImport/gemini', () => {
 const request = require('supertest');
 const supabase = require('../../services/supabase');
 const store = require('../../services/timetableStore');
-const gemini = require('../../services/timetableImport/gemini');
+const gemini = require('../../services/timetableImport/pdfReader');
 const app = require('../../index');
 
 const as = (key) => ({ Authorization: `Bearer ${key}` });
