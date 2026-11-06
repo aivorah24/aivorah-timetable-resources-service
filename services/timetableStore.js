@@ -89,7 +89,29 @@ async function replaceSlots(timetableId, slots, updatedBy) {
   if (error) throw error;
 }
 
+// Every class timetable of a school (for a teacher's own timetable).
+async function schoolTimetables(schoolId) {
+  const { data, error } = await supabase
+    .from('class_timetables')
+    .select('id, grade, section, period_defs')
+    .eq('school_id', schoolId);
+  if (error) throw error;
+  return data || [];
+}
+
+// The periods one teacher teaches, within the given timetables.
+async function teacherSlots(teacherId, timetableIds) {
+  if (!teacherId || !timetableIds.length) return [];
+  const { data, error } = await supabase
+    .from('timetable_slots')
+    .select('id, timetable_id, day_of_week, period_code, subject_name, room_name, material_url, material_name, color')
+    .eq('teacher_id', teacherId)
+    .in('timetable_id', timetableIds);
+  if (error) throw error;
+  return data || [];
+}
+
 module.exports = {
-  schoolTeachers, replaceSlots,
+  schoolTeachers, replaceSlots, schoolTimetables, teacherSlots,
   childrenOf, schoolCurriculum, findTimetable, loadSlots, namesById, saveTemplate, upsertSlot, deleteSlot,
 };
