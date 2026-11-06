@@ -42,6 +42,9 @@ jest.mock('../../services/timetableStore', () => ({
   saveTemplate: jest.fn(async () => 'tt1'),
   upsertSlot: jest.fn(),
   deleteSlot: jest.fn(),
+  schoolTeachers: jest.fn(async () => [{ id: 'u3', name: 'Zara Other' }, { id: 'u2', name: 'Asha Home' }]),
+  schoolTimetables: jest.fn(async () => []),
+  teacherSlots: jest.fn(async () => []),
 }));
 jest.mock('../../services/resourcesStore', () => ({
   childrenScopes: jest.fn(async () => [{ grade: 'Grade 7' }]),
@@ -110,9 +113,9 @@ describe('timetable', () => {
   });
   test('view: homeroom teacher can manage, other teacher only edit slots', async () => {
     const a = await request(app).get('/timetable').query({ grade: 'Grade 7', section: 'A' }).set(as('homeroom'));
-    expect(a.body.permissions).toEqual({ canManageTemplate: true, canEditSlot: true });
+    expect(a.body.permissions).toEqual({ canManageTemplate: true, canEditSlot: true, canAssignTeacher: true });
     const b = await request(app).get('/timetable').query({ grade: 'Grade 7', section: 'A' }).set(as('teacher'));
-    expect(b.body.permissions).toEqual({ canManageTemplate: false, canEditSlot: true });
+    expect(b.body.permissions).toEqual({ canManageTemplate: false, canEditSlot: true, canAssignTeacher: false });
   });
   test('view: always reads the signed-in user\'s school, not a schoolId param', async () => {
     await request(app).get('/timetable').query({ grade: 'Grade 7', section: 'A', schoolId: 'other' }).set(as('admin'));
@@ -121,7 +124,7 @@ describe('timetable', () => {
   test('view: parent of another class -> 403; own child\'s class -> read-only', async () => {
     expect((await request(app).get('/timetable').query({ grade: 'Grade 7', section: 'A' }).set(as('parent'))).status).toBe(403);
     const ok = await request(app).get('/timetable').query({ grade: 'Grade 7', section: 'B' }).set(as('parent'));
-    expect(ok.body.permissions).toEqual({ canManageTemplate: false, canEditSlot: false });
+    expect(ok.body.permissions).toEqual({ canManageTemplate: false, canEditSlot: false, canAssignTeacher: false });
   });
   test('template: homeroom saves; validation rejects bad time and duplicate labels', async () => {
     const ok = await request(app).put('/timetable/template').set(as('homeroom')).send({ grade: 'Grade 7', section: 'A', periodDefs: PERIODS });
@@ -148,6 +151,58 @@ describe('timetable', () => {
     tt.findTimetable.mockResolvedValueOnce(null);
     const r = await request(app).put('/timetable/slot').set(as('teacher')).send({ grade: 'Grade 7', section: 'A', day: 'MON', periodCode: 'P1', subject: 'X' });
     expect(r.status).toBe(409);
+  });
+});
+
+describe('teacher timetable views', () => {
+  const TT_A = { id: 'ttA', grade: 'Grade 7', section: 'A', period_defs: PERIODS };
+  const TT_B = { id: 'ttB', grade: 'Grade 7', section: 'B', period_defs: PERIODS };
+
+  test('mine: a teacher gets their own periods from every class, with the class to go to', async () => {
+    tt.schoolTimetables.mockResolvedValueOnce([TT_A, TT_B]);
+    tt.teacherSlots.mockResolvedValueOnce([
+      { id: 'x1', timetable_id: 'ttB', day_of_week: 'TUE', period_code: 'P1', subject_name: 'Science', room_name: 'Lab' },
+    ]);
+    const r = await request(app).get('/timetable/mine').set(as('teacher'));
+    expect(r.status).toBe(200);
+    expect(tt.schoolTimetables).toHaveBeenCalledWith('s1');
+    expect(tt.teacherSlots).toHaveBeenCalledWith('u3', ['ttA', 'ttB']);
+    expect(r.body.slots).toEqual([expect.objectContaining({ day: 'TUE', periodCode: 'P1', subject: 'Science', classLabel: 'Grade 7 B' })]);
+    expect(r.body.periodDefs.map((p) => p.code)).toEqual(['P1', 'BRK']);
+    expect(r.body.permissions).toEqual({ canManageTemplate: false, canEditSlot: false, canAssignTeacher: false });
+  });
+
+  test('mine: only teachers', async () => {
+    expect((await request(app).get('/timetable/mine').set(as('admin'))).status).toBe(403);
+    expect((await request(app).get('/timetable/mine').set(as('student'))).status).toBe(403);
+  });
+
+  test('teachers: listed by name for staff; students/parents -> 403', async () => {
+    const r = await request(app).get('/timetable/teachers').set(as('admin'));
+    expect(r.body.teachers).toEqual([{ id: 'u2', name: 'Asha Home' }, { id: 'u3', name: 'Zara Other' }]);
+    expect((await request(app).get('/timetable/teachers').set(as('parent'))).status).toBe(403);
+  });
+
+  test('slot teacher: admin or homeroom teacher may choose who takes the period', async () => {
+    const body = { grade: 'Grade 7', section: 'A', day: 'MON', periodCode: 'P1', subject: 'Maths', teacherId: 'u3' };
+    expect((await request(app).put('/timetable/slot').set(as('admin')).send(body)).status).toBe(200);
+    expect(tt.upsertSlot).toHaveBeenLastCalledWith('tt1', 'MON', 'P1', expect.objectContaining({ subject_name: 'Maths', teacher_id: 'u3' }), 'admin@s1.org');
+    expect((await request(app).put('/timetable/slot').set(as('homeroom')).send({ ...body, teacherId: null })).status).toBe(200);
+    expect(tt.upsertSlot).toHaveBeenLastCalledWith('tt1', 'MON', 'P1', expect.objectContaining({ teacher_id: null }), 'home@s1.org');
+  });
+
+  test('slot teacher: another teacher may edit the period but not choose its teacher', async () => {
+    const body = { grade: 'Grade 7', section: 'A', day: 'MON', periodCode: 'P1', subject: 'Maths' };
+    expect((await request(app).put('/timetable/slot').set(as('teacher')).send({ ...body, teacherId: 'u3' })).status).toBe(403);
+    expect((await request(app).put('/timetable/slot').set(as('teacher')).send(body)).status).toBe(200);
+    // left out -> the period keeps whoever it had
+    expect(tt.upsertSlot.mock.calls.at(-1)[3]).not.toHaveProperty('teacher_id');
+  });
+
+  test('slot teacher: a teacher from another school -> 400', async () => {
+    const body = { grade: 'Grade 7', section: 'A', day: 'MON', periodCode: 'P1', subject: 'Maths', teacherId: 'someone-else' };
+    expect((await request(app).put('/timetable/slot').set(as('admin')).send(body)).status).toBe(400);
+    expect(tt.upsertSlot).not.toHaveBeenCalled();
   });
 });
 

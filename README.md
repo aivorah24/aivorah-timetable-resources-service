@@ -20,8 +20,10 @@ token's email; nothing about identity or school is read from the request.
 |---|---|
 | `GET /timetable/classes` | anyone; classes they can open (+ grades for admins) |
 | `GET /timetable?grade=&section=` | students of the class, parents of a child in it, teachers/admins of the school |
+| `GET /timetable/mine` | teachers; their own week — every period they teach in any class of the school, one grid, each period with the class to go to (+ `clashes` for double-booked periods) |
+| `GET /timetable/teachers` | teachers, school admins; the school's teachers (to choose who takes a period) |
 | `PUT /timetable/template` | school admin, or the class's homeroom teacher |
-| `PUT /timetable/slot` | template managers, or any teacher in the school |
+| `PUT /timetable/slot` | template managers, or any teacher in the school; `teacherId` (who takes the period) only template managers |
 | `POST /timetable/import/preview` (multipart `file`, PDF ≤ 10 MB) | school admins, teachers — reads every class timetable in the PDF and matches it to the school's classes; saves nothing |
 | `POST /timetable/import/commit` | school admin (any class) or homeroom teacher (own class) — replaces those classes' periods and subjects |
 | `GET /resources?folderId=` | anyone in the school (students/parents see school + their grade/curriculum scope) |

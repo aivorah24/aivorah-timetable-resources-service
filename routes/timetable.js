@@ -8,6 +8,7 @@ const { buildGradesSectionsView } = require('../services/academicStructure');
 const store = require('../services/timetableStore');
 const access = require('../services/classAccess');
 const { cleanPeriodDefs } = require('../services/periodDefs');
+const { buildTeacherTimetable } = require('../services/teacherTimetable');
 
 const router = express.Router();
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -34,6 +35,45 @@ router.get('/classes', async (req, res) => {
   } catch (err) {
     console.error('[GET /timetable/classes]', err.message);
     res.status(500).json({ error: 'Failed to load classes' });
+  }
+});
+
+// GET /timetable/mine — a teacher's own week: every period they teach, in
+// any class of their school, merged into one grid (services/teacherTimetable.js).
+// Slots carry grade/section/classLabel so the teacher knows where to go.
+router.get('/mine', async (req, res) => {
+  const user = req.user;
+  if (user.role !== 'teacher') return res.status(403).json({ error: 'Only teachers have a personal timetable' });
+  if (!user.school_id) return res.json(emptyMine(user));
+  try {
+    const timetables = await store.schoolTimetables(user.school_id);
+    const slots = await store.teacherSlots(user.id, timetables.map((t) => t.id));
+    const { periodDefs, slots: mine, clashes } = buildTeacherTimetable(timetables, slots, { id: user.id, name: user.name });
+    res.json({ ...emptyMine(user), periodDefs, slots: mine, clashes });
+  } catch (err) {
+    console.error('[GET /timetable/mine]', err.message);
+    res.status(500).json({ error: 'Failed to load your timetable' });
+  }
+});
+
+function emptyMine(user) {
+  return {
+    grade: '', section: '', title: `${user.name || 'My'} Timetable`,
+    periodDefs: [], days: DAYS, slots: [], clashes: [],
+    permissions: { canManageTemplate: false, canEditSlot: false, canAssignTeacher: false },
+  };
+}
+
+// GET /timetable/teachers — the school's teachers, for choosing who takes a period.
+router.get('/teachers', async (req, res) => {
+  const user = req.user;
+  if (!access.isManager(user) || !user.school_id) return res.status(403).json({ error: 'Not allowed' });
+  try {
+    const teachers = await store.schoolTeachers(user.school_id);
+    res.json({ teachers: teachers.map((t) => ({ id: t.id, name: t.name })).sort((a, b) => String(a.name).localeCompare(String(b.name))) });
+  } catch (err) {
+    console.error('[GET /timetable/teachers]', err.message);
+    res.status(500).json({ error: 'Failed to load teachers' });
   }
 });
 
@@ -66,6 +106,8 @@ router.get('/', async (req, res) => {
       permissions: {
         canManageTemplate: access.canManageTemplate(user, grades, grade, section),
         canEditSlot: access.canEditSlot(user, grades, grade, section),
+        // Who takes the period: school admin or the class's homeroom teacher.
+        canAssignTeacher: access.canManageTemplate(user, grades, grade, section),
       },
     });
   } catch (err) {
@@ -98,8 +140,10 @@ router.put('/template', async (req, res) => {
   }
 });
 
-// PUT /timetable/slot { grade, section, day, periodCode, subject?, room?, materialUrl?, materialName?, color? }
-// An empty subject clears the cell.
+// PUT /timetable/slot { grade, section, day, periodCode, subject?, room?, materialUrl?, materialName?, color?, teacherId? }
+// An empty subject clears the cell. teacherId (a teacher of this school, or null
+// for none) is only for a school admin or the homeroom teacher; left out, the
+// period keeps its teacher.
 router.put('/slot', async (req, res) => {
   const user = req.user;
   const { grade, section } = classParams(req.body);
@@ -117,6 +161,19 @@ router.put('/slot', async (req, res) => {
     const period = (tt.period_defs || []).find((p) => p.code === periodCode);
     if (!period || period.isBreak) return res.status(400).json({ error: 'Unknown period' });
 
+    const fields = {};
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'teacherId')) {
+      if (!access.canManageTemplate(user, grades, grade, section)) {
+        return res.status(403).json({ error: 'Only a school admin or the homeroom teacher can choose who takes a period' });
+      }
+      const teacherId = req.body.teacherId || null;
+      if (teacherId) {
+        const teachers = await store.schoolTeachers(user.school_id);
+        if (!teachers.some((t) => t.id === teacherId)) return res.status(400).json({ error: 'That teacher is not in your school' });
+      }
+      fields.teacher_id = teacherId;
+    }
+
     const subject = String(req.body?.subject || '').trim();
     if (!subject) {
       await store.deleteSlot(tt.id, day, periodCode);
@@ -128,6 +185,7 @@ router.put('/slot', async (req, res) => {
       material_url: req.body?.materialUrl || null,
       material_name: req.body?.materialName || null,
       color: String(req.body?.color || '').trim() || null,
+      ...fields,
     }, user.email);
     res.json({ ok: true });
   } catch (err) {
